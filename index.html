@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>법인카드 실시간 한도 관리</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f8fafc; }
+        .icon { display: inline-block; vertical-align: -0.15em; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Navigation Bar -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-blue-600 text-white p-2 rounded-xl">
+                        <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                    </div>
+                    <div>
+                        <span class="text-lg font-bold text-slate-900 block leading-tight">법카메이트 (Corporate Card Mate)</span>
+                        <span class="text-xs text-slate-500">인당 월 100,000원 한도 실시간 관리</span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span id="connection-status" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        <span class="w-1.5 h-1.5 mr-1.5 bg-amber-500 rounded-full animate-ping"></span>
+                        연결 확인 중...
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <div id="loading-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center transition-opacity duration-300">
+            <div class="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center space-y-4 max-w-xs w-full">
+                <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
+                <p class="text-slate-700 font-medium text-center">Firebase에<br>실시간 연결 중입니다...</p>
+            </div>
+        </div>
+
+        <!-- Top Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
+                <div class="p-3.5 bg-blue-50 text-blue-600 rounded-2xl">
+                    <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500">팀 전체 사용 금액</p>
+                    <h3 class="text-2xl font-bold text-slate-900 mt-1"><span id="team-used">0</span>원</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">전체 한도 600,000원 중</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
+                <div class="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl">
+                    <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5h-4a2 2 0 0 1 0-4z"/></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500">팀 전체 남은 잔액</p>
+                    <h3 class="text-2xl font-bold text-emerald-600 mt-1"><span id="team-left">600,000</span>원</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">남은 예산 효율적 관리</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-4">
+                <div class="p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl">
+                    <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.5 3.7"/></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500">팀 전체 소진율</p>
+                    <h3 class="text-2xl font-bold text-slate-900 mt-1"><span id="team-ratio">0</span>%</h3>
+                    <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2">
+                        <div id="team-progress-bar" class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+            <div class="lg:col-span-8 space-y-8">
+
+                <div>
+                    <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                        <h2 class="text-lg font-bold text-slate-900 flex items-center">
+                            <svg class="icon mr-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="8" cy="10" r="2"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="13" y1="9" x2="18" y2="9"/><line x1="13" y1="13" x2="18" y2="13"/></svg>
+                            팀원별 잔액 및 사용 현황 (6명)
+                        </h2>
+                        <div class="flex items-center gap-2">
+                            <button onclick="openNameEditModal()" class="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+                                <svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+                                팀원 이름 수정
+                            </button>
+                            <button onclick="openResetModal()" class="text-xs text-rose-600 hover:text-rose-800 font-medium flex items-center gap-1 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors">
+                                <svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 9 8 9"/></svg>
+                                월별 리셋
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="members-grid"></div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <h2 class="text-lg font-bold text-slate-900 flex items-center">
+                            <svg class="icon mr-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                            전체 결제 내역 (실시간)
+                        </h2>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <select id="filter-member" onchange="renderHistory()" class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2">
+                                <option value="all">모든 팀원 보기</option>
+                            </select>
+                            <select id="filter-sort" onchange="renderHistory()" class="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2">
+                                <option value="desc">최신 결제 순</option>
+                                <option value="asc">과거 결제 순</option>
+                                <option value="amount-desc">높은 금액 순</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50/75 border-b border-slate-100 text-xs font-semibold uppercase text-slate-500 tracking-wider">
+                                    <th class="py-3.5 px-6">날짜</th>
+                                    <th class="py-3.5 px-6">팀원</th>
+                                    <th class="py-3.5 px-6">사용처</th>
+                                    <th class="py-3.5 px-6">분류</th>
+                                    <th class="py-3.5 px-6 text-right">금액</th>
+                                    <th class="py-3.5 px-6 text-center">동작</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody" class="divide-y divide-slate-100 text-sm text-slate-700"></tbody>
+                        </table>
+
+                        <div id="empty-state" class="hidden py-16 text-center">
+                            <div class="text-slate-300 mb-3 flex justify-center">
+                                <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h11l5 5v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+                            </div>
+                            <p class="text-slate-500 font-medium">아직 등록된 결제 내역이 없습니다.</p>
+                            <p class="text-xs text-slate-400 mt-1">우측 입력 양식을 통해 첫 결제 내역을 등록해보세요!</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="lg:col-span-4">
+                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm sticky top-24">
+                    <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center">
+                        <svg class="icon mr-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                        결제 내역 등록
+                    </h2>
+
+                    <form id="expense-form" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">결제 일자</label>
+                            <input type="date" id="form-date" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-slate-800">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">사용 팀원</label>
+                            <select id="form-member" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-slate-800">
+                                <option value="" disabled selected>팀원을 선택하세요</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">사용처 (가맹점명)</label>
+                            <input type="text" id="form-store" placeholder="예: 구내식당, 카페, 마트" required class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-slate-800">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">분류</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <label class="border border-slate-200 bg-slate-50 rounded-xl p-2.5 text-center cursor-pointer hover:bg-slate-100 block transition-all">
+                                    <input type="radio" name="form-category" value="식대" checked class="hidden peer">
+                                    <span class="text-xs font-semibold text-slate-600 flex flex-col items-center gap-1 peer-checked:text-blue-600">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h1a2 2 0 0 0 2-2V2"/><path d="M6 2v20"/><path d="M18 2c-2 0-3 2-3 5v3c0 1 1 2 3 2s3-1 3-2V7c0-3-1-5-3-5z"/><path d="M18 12v10"/></svg>
+                                        식대
+                                    </span>
+                                </label>
+                                <label class="border border-slate-200 bg-slate-50 rounded-xl p-2.5 text-center cursor-pointer hover:bg-slate-100 block transition-all">
+                                    <input type="radio" name="form-category" value="카페" class="hidden peer">
+                                    <span class="text-xs font-semibold text-slate-600 flex flex-col items-center gap-1 peer-checked:text-blue-600">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+                                        카페
+                                    </span>
+                                </label>
+                                <label class="border border-slate-200 bg-slate-50 rounded-xl p-2.5 text-center cursor-pointer hover:bg-slate-100 block transition-all">
+                                    <input type="radio" name="form-category" value="기타" class="hidden peer">
+                                    <span class="text-xs font-semibold text-slate-600 flex flex-col items-center gap-1 peer-checked:text-blue-600">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>
+                                        기타
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">결제 금액 (원)</label>
+                            <div class="relative">
+                                <input type="number" id="form-amount" placeholder="실제 결제 금액 입력" required min="1" class="w-full pl-4 pr-12 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-slate-800 text-lg font-bold">
+                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium">원</span>
+                            </div>
+                        </div>
+
+                        <div id="limit-warning" class="hidden bg-rose-50 border border-rose-100 text-rose-800 p-3 rounded-xl flex items-start space-x-2">
+                            <svg class="icon mt-0.5 shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 1 21h22z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17.5" x2="12" y2="17.5"/></svg>
+                            <div class="text-xs">
+                                <p class="font-bold">한도 초과 경고</p>
+                                <p class="text-rose-600 mt-0.5">이 결제를 등록하면 이 팀원의 이번 달 누적 사용액이 10만원 한도를 초과합니다!</p>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-blue-500/10 transition-colors flex items-center justify-center space-x-2">
+                            <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                            <span>등록하기</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Name Edit Modal -->
+    <div id="name-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <h3 class="text-lg font-bold text-slate-900 mb-4 flex items-center">
+                <svg class="icon mr-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                팀원 이름 설정
+            </h3>
+            <p class="text-xs text-slate-500 mb-4">대시보드에 노출될 팀원 6명의 실제 이름을 입력하세요. 저장하면 접속한 모든 팀원 화면에 실시간으로 반영됩니다.</p>
+            <div class="space-y-3 mb-6" id="name-inputs-container"></div>
+            <div class="flex space-x-3">
+                <button onclick="closeNameEditModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 px-4 rounded-xl transition-colors">취소</button>
+                <button onclick="saveNames()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-xl transition-colors shadow-lg shadow-blue-500/10">이름 저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Confirm Modal -->
+    <div id="confirm-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl">
+            <div class="flex items-start space-x-3 mb-5">
+                <div class="p-2.5 rounded-xl bg-rose-50 text-rose-600 shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 1 21h22z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17.5" x2="12" y2="17.5"/></svg>
+                </div>
+                <div>
+                    <h3 id="confirm-title" class="text-base font-bold text-slate-900">확인이 필요합니다</h3>
+                    <p id="confirm-message" class="text-sm text-slate-500 mt-1"></p>
+                </div>
+            </div>
+            <div class="flex space-x-3">
+                <button onclick="closeConfirmModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 px-4 rounded-xl transition-colors">아니오</button>
+                <button id="confirm-yes-btn" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2.5 px-4 rounded-xl transition-colors shadow-lg shadow-rose-500/10">예 (YES)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-10 opacity-0 transition-all duration-300 max-w-sm w-full bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 pointer-events-none">
+        <div id="toast-icon-bg" class="p-1.5 rounded-lg"></div>
+        <div>
+            <p id="toast-title" class="font-bold text-sm"></p>
+            <p id="toast-message" class="text-xs text-slate-300 mt-0.5"></p>
+        </div>
+    </div>
+
+    <footer class="bg-slate-100 border-t border-slate-200 py-6 text-center text-xs text-slate-500 mt-12">
+        <p>© 2026 법카메이트. All rights reserved. 데이터는 Firebase를 통해 실시간으로 동기화됩니다.</p>
+    </footer>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, addDoc, deleteDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        const INDIVIDUAL_LIMIT = 100000;
+
+        // ============================================================
+        // ↓↓↓ 여기에 Firebase 콘솔에서 복사한 firebaseConfig를 붙여넣으세요 ↓↓↓
+        // (프로젝트 설정 → 내 앱 → SDK 설정 및 구성 에서 확인 가능)
+        // ============================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyAbqOtCEBvTKUbhyMNMg5Uook43zz8ur5c",
+            authDomain: "team-card-1b290.firebaseapp.com",
+            projectId: "team-card-1b290",
+            storageBucket: "team-card-1b290.firebasestorage.app",
+            messagingSenderId: "270670117263",
+            appId: "1:270670117263:web:4867d10e5e8fc6b9dfb3fa"
+        };
+        // ============================================================
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = 'corporate-card-mate';
+
+        const DEFAULT_MEMBERS = [
+            { id: 0, name: '팀원 A' }, { id: 1, name: '팀원 B' }, { id: 2, name: '팀원 C' },
+            { id: 3, name: '팀원 D' }, { id: 4, name: '팀원 E' }, { id: 5, name: '팀원 F' }
+        ];
+
+        let teamMembers = [...DEFAULT_MEMBERS];
+        let expenses = [];
+        let authUser = null;
+        let confirmYesHandler = null;
+
+        window.openNameEditModal = openNameEditModal;
+        window.closeNameEditModal = closeNameEditModal;
+        window.saveNames = saveNames;
+        window.handleFormSubmit = handleFormSubmit;
+        window.renderHistory = renderHistory;
+        window.deleteExpenseItem = deleteExpenseItem;
+        window.openResetModal = openResetModal;
+        window.closeConfirmModal = closeConfirmModal;
+
+        async function initApp() {
+            try {
+                await signInAnonymously(auth);
+            } catch (err) {
+                console.error("Authentication failed", err);
+                setStatus('error', '로그인 오류');
+                showToast('error', '연결 오류', 'Firebase 인증에 실패했습니다. firebaseConfig 값을 확인해주세요.');
+            }
+        }
+
+        function setStatus(type, label) {
+            const el = document.getElementById('connection-status');
+            const colors = {
+                ok: 'bg-emerald-100 text-emerald-800',
+                error: 'bg-rose-100 text-rose-800',
+                loading: 'bg-amber-100 text-amber-800'
+            };
+            el.className = `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[type]}`;
+            el.innerHTML = `<span class="w-1.5 h-1.5 mr-1.5 rounded-full ${type==='ok'?'bg-emerald-500 animate-pulse':type==='error'?'bg-rose-500':'bg-amber-500 animate-ping'}"></span>${label}`;
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) return;
+            authUser = user;
+            setStatus('ok', '실시간 서버 연결됨');
+
+            const settingsDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'team_names');
+            try {
+                const docSnap = await getDoc(settingsDocRef);
+                if (!docSnap.exists()) {
+                    await setDoc(settingsDocRef, { members: DEFAULT_MEMBERS });
+                }
+            } catch (error) {
+                console.log("초기 설정 생성 중...", error);
+            }
+
+            onSnapshot(settingsDocRef, (snap) => {
+                if (snap.exists() && snap.data().members) {
+                    teamMembers = snap.data().members;
+                }
+                updateDropdownAndPickers();
+                calculateAndRender();
+            }, (error) => {
+                console.error("이름 설정 로드 오류", error);
+                setStatus('error', '규칙(Rules) 확인 필요');
+            });
+
+            const expensesColRef = collection(db, 'artifacts', appId, 'public', 'data', 'expenses');
+            onSnapshot(expensesColRef, (snapshot) => {
+                expenses = [];
+                snapshot.forEach(d => expenses.push({ id: d.id, ...d.data() }));
+                expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+                calculateAndRender();
+                document.getElementById('loading-overlay').classList.add('opacity-0', 'pointer-events-none');
+            }, (error) => {
+                console.error("결제내역 로드 오류", error);
+                setStatus('error', '규칙(Rules) 확인 필요');
+                document.getElementById('loading-overlay').classList.add('opacity-0', 'pointer-events-none');
+            });
+        });
+
+        document.getElementById('form-date').value = new Date().toISOString().split('T')[0];
+
+        const formAmountInput = document.getElementById('form-amount');
+        const formMemberSelect = document.getElementById('form-member');
+        const limitWarning = document.getElementById('limit-warning');
+
+        function checkLimitWarning() {
+            const memberIdx = parseInt(formMemberSelect.value);
+            const inputAmount = parseInt(formAmountInput.value) || 0;
+            if (isNaN(memberIdx)) { limitWarning.classList.add('hidden'); return; }
+            const currentSpent = expenses.filter(e => parseInt(e.memberId) === memberIdx).reduce((s, e) => s + parseInt(e.amount), 0);
+            limitWarning.classList.toggle('hidden', currentSpent + inputAmount <= INDIVIDUAL_LIMIT);
+        }
+        formAmountInput.addEventListener('input', checkLimitWarning);
+        formMemberSelect.addEventListener('change', checkLimitWarning);
+
+        const TOAST_ICONS = {
+            success: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+            error: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+            info: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+        };
+
+        function showToast(type, title, message) {
+            const toast = document.getElementById('toast');
+            const iconBg = document.getElementById('toast-icon-bg');
+            document.getElementById('toast-title').textContent = title;
+            document.getElementById('toast-message').textContent = message;
+            const bg = type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-rose-500' : 'bg-blue-500';
+            iconBg.className = `p-1.5 rounded-lg ${bg} text-white`;
+            iconBg.innerHTML = TOAST_ICONS[type] || TOAST_ICONS.info;
+
+            toast.classList.remove('translate-y-10', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-10', 'opacity-0');
+            }, 3000);
+        }
+
+        function openConfirmModal(title, message, onYes) {
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            confirmYesHandler = onYes;
+            const yesBtn = document.getElementById('confirm-yes-btn');
+            yesBtn.onclick = async () => {
+                yesBtn.disabled = true;
+                yesBtn.innerHTML = '처리 중...';
+                try { if (confirmYesHandler) await confirmYesHandler(); }
+                finally { yesBtn.disabled = false; yesBtn.innerHTML = '예 (YES)'; closeConfirmModal(); }
+            };
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        }
+        function closeConfirmModal() {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            confirmYesHandler = null;
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            if (!authUser) {
+                showToast('error', '연결 대기 중', '서버 연결이 완료된 후 다시 시도해주세요.');
+                return;
+            }
+
+            const date = document.getElementById('form-date').value;
+            const memberId = parseInt(document.getElementById('form-member').value);
+            const store = document.getElementById('form-store').value.trim();
+            const category = document.querySelector('input[name="form-category"]:checked').value;
+            const amount = parseInt(document.getElementById('form-amount').value);
+
+            if (!date || isNaN(memberId) || !store || isNaN(amount) || amount <= 0) {
+                showToast('error', '입력 오류', '모든 양식을 정확하게 입력해 주세요.');
+                return;
+            }
+
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span>전송 중...</span>';
+
+            try {
+                const docData = { date, memberId, store, category, amount, createdAt: serverTimestamp() };
+                const expensesColRef = collection(db, 'artifacts', appId, 'public', 'data', 'expenses');
+                await addDoc(expensesColRef, docData);
+
+                const member = teamMembers.find(m => m.id === memberId);
+                const currentSpent = expenses.filter(e => parseInt(e.memberId) === memberId).reduce((s, e) => s + parseInt(e.amount), 0);
+                const newTotal = currentSpent + amount;
+
+                if (newTotal > INDIVIDUAL_LIMIT) {
+                    showToast('error', '한도 초과 등록', `${member.name}님의 누적액이 한도(${INDIVIDUAL_LIMIT.toLocaleString()}원)를 초과했습니다!`);
+                } else {
+                    showToast('success', '등록 성공', `${member.name}님의 내역이 저장되었습니다.`);
+                }
+
+                document.getElementById('form-store').value = '';
+                document.getElementById('form-amount').value = '';
+                limitWarning.classList.add('hidden');
+            } catch (err) {
+                console.error("등록 오류", err);
+                showToast('error', '등록 실패', 'Firestore 저장에 실패했습니다. 콘솔에서 규칙(Rules)을 확인해주세요.');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg><span>등록하기</span>';
+            }
+        }
+
+        function deleteExpenseItem(expenseId, storeName) {
+            openConfirmModal('결제 내역 삭제', `'${storeName}' 결제 내역을 정말 삭제하시겠습니까? 되돌릴 수 없습니다.`, async () => {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'expenses', expenseId));
+                    showToast('success', '삭제 완료', '결제 내역이 삭제되었습니다.');
+                } catch (error) {
+                    console.error("삭제 오류", error);
+                    showToast('error', '삭제 실패', '삭제 처리 중 오류가 발생했습니다.');
+                }
+            });
+        }
+
+        function openResetModal() {
+            openConfirmModal('월별 리셋', '이번 달 결제 내역이 모두 사라집니다! 팀원별 한도가 다시 인당 100,000원으로 초기화됩니다. 계속하시겠습니까?', async () => {
+                try {
+                    const results = await Promise.allSettled(expenses.map(exp =>
+                        deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'expenses', exp.id))
+                    ));
+                    const failed = results.filter(r => r.status === 'rejected').length;
+                    if (failed > 0) {
+                        showToast('error', '일부 삭제 실패', `${failed}건 삭제에 실패했습니다. 다시 시도해주세요.`);
+                    } else {
+                        showToast('success', '리셋 완료', '모든 팀원의 한도가 100,000원으로 초기화되었습니다.');
+                    }
+                } catch (error) {
+                    console.error("리셋 오류", error);
+                    showToast('error', '리셋 실패', '리셋 처리 중 오류가 발생했습니다.');
+                }
+            });
+        }
+
+        function openNameEditModal() {
+            const container = document.getElementById('name-inputs-container');
+            container.innerHTML = '';
+            teamMembers.forEach(m => {
+                container.innerHTML += `
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">팀원 ${m.id + 1}</label>
+                        <input type="text" id="edit-name-${m.id}" value="${m.name}" required maxlength="10"
+                            class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-slate-800 text-sm font-medium">
+                    </div>`;
+            });
+            document.getElementById('name-modal').classList.remove('hidden');
+        }
+        function closeNameEditModal() { document.getElementById('name-modal').classList.add('hidden'); }
+
+        async function saveNames() {
+            if (!authUser) return;
+            const updatedNames = [];
+            for (let i = 0; i < 6; i++) {
+                const val = document.getElementById(`edit-name-${i}`).value.trim();
+                if (!val) { showToast('error', '저장 불가', '모든 팀원의 이름을 입력해야 합니다.'); return; }
+                updatedNames.push({ id: i, name: val });
+            }
+            try {
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'team_names'), { members: updatedNames });
+                closeNameEditModal();
+                showToast('success', '저장 완료', '변경 사항이 모든 팀원 화면에 실시간 반영됩니다.');
+            } catch (e) {
+                console.error("이름 저장 오류", e);
+                showToast('error', '저장 실패', '이름 변경 내역을 반영할 수 없습니다.');
+            }
+        }
+
+        function updateDropdownAndPickers() {
+            const filterSelect = document.getElementById('filter-member');
+            const prevFilterVal = filterSelect.value;
+            filterSelect.innerHTML = '<option value="all">모든 팀원 보기</option>';
+            teamMembers.forEach(m => filterSelect.innerHTML += `<option value="${m.id}">${m.name}</option>`);
+            filterSelect.value = prevFilterVal || 'all';
+
+            const formMemberSelect = document.getElementById('form-member');
+            const prevFormVal = formMemberSelect.value;
+            formMemberSelect.innerHTML = '<option value="" disabled selected>팀원을 선택하세요</option>';
+            teamMembers.forEach(m => formMemberSelect.innerHTML += `<option value="${m.id}">${m.name}</option>`);
+            if (prevFormVal) formMemberSelect.value = prevFormVal;
+        }
+
+        function calculateAndRender() {
+            const memberStats = teamMembers.map(m => ({ id: m.id, name: m.name, used: 0, left: INDIVIDUAL_LIMIT, ratio: 0 }));
+            let totalTeamUsed = 0;
+
+            expenses.forEach(exp => {
+                const stat = memberStats.find(s => s.id === parseInt(exp.memberId));
+                if (stat) { stat.used += parseInt(exp.amount); totalTeamUsed += parseInt(exp.amount); }
+            });
+
+            memberStats.forEach(stat => {
+                stat.left = Math.max(0, INDIVIDUAL_LIMIT - stat.used);
+                stat.ratio = Math.min(100, Math.round((stat.used / INDIVIDUAL_LIMIT) * 100));
+            });
+
+            const totalTeamLimit = INDIVIDUAL_LIMIT * 6;
+            document.getElementById('team-used').textContent = totalTeamUsed.toLocaleString();
+            document.getElementById('team-left').textContent = Math.max(0, totalTeamLimit - totalTeamUsed).toLocaleString();
+
+            const teamRatio = Math.min(100, Math.round((totalTeamUsed / totalTeamLimit) * 100));
+            document.getElementById('team-ratio').textContent = teamRatio;
+            const pBar = document.getElementById('team-progress-bar');
+            pBar.style.width = `${teamRatio}%`;
+            pBar.className = `h-1.5 rounded-full transition-all duration-500 ${teamRatio >= 90 ? 'bg-rose-600' : teamRatio >= 75 ? 'bg-amber-500' : 'bg-indigo-600'}`;
+
+            const membersGrid = document.getElementById('members-grid');
+            membersGrid.innerHTML = '';
+
+            memberStats.forEach(stat => {
+                const isLimitExceeded = stat.used > INDIVIDUAL_LIMIT;
+                const isNearLimit = stat.used >= (INDIVIDUAL_LIMIT * 0.8) && !isLimitExceeded;
+
+                let borderClass = 'border-slate-100', progressColorClass = 'bg-blue-600', badgeHtml = '';
+                if (isLimitExceeded) {
+                    borderClass = 'border-rose-200'; progressColorClass = 'bg-rose-600';
+                    badgeHtml = `<span class="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full ml-1.5">한도 초과</span>`;
+                } else if (isNearLimit) {
+                    borderClass = 'border-amber-200'; progressColorClass = 'bg-amber-500';
+                    badgeHtml = `<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full ml-1.5">한도 근접</span>`;
+                }
+
+                membersGrid.innerHTML += `
+                    <div class="bg-white p-5 rounded-2xl border ${borderClass} shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="text-base font-bold text-slate-900 flex items-center">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500 mr-2"></span>${stat.name}${badgeHtml}
+                                </h3>
+                                <p class="text-xs text-slate-400 mt-0.5">남은 한도</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-sm font-semibold text-slate-500">소진율</span>
+                                <span class="text-base font-extrabold block text-slate-900">${stat.ratio}%</span>
+                            </div>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-2 mb-4 overflow-hidden">
+                            <div class="${progressColorClass} h-2 rounded-full transition-all duration-500" style="width: ${stat.ratio}%"></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
+                            <div><span class="text-slate-400 block">사용한 금액</span><span class="font-bold text-slate-800 text-sm">${stat.used.toLocaleString()}원</span></div>
+                            <div class="text-right"><span class="text-slate-400 block">사용 가능한 금액</span><span class="font-bold text-emerald-600 text-sm">${stat.left.toLocaleString()}원</span></div>
+                        </div>
+                    </div>`;
+            });
+
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const filterMemberVal = document.getElementById('filter-member').value;
+            const sortVal = document.getElementById('filter-sort').value;
+            let filteredList = [...expenses];
+
+            if (filterMemberVal !== 'all') {
+                const targetMemberId = parseInt(filterMemberVal);
+                filteredList = filteredList.filter(exp => parseInt(exp.memberId) === targetMemberId);
+            }
+
+            if (sortVal === 'desc') filteredList.sort((a, b) => new Date(b.date) - new Date(a.date));
+            else if (sortVal === 'asc') filteredList.sort((a, b) => new Date(a.date) - new Date(b.date));
+            else if (sortVal === 'amount-desc') filteredList.sort((a, b) => b.amount - a.amount);
+
+            const tbody = document.getElementById('history-tbody');
+            const emptyState = document.getElementById('empty-state');
+            tbody.innerHTML = '';
+
+            if (filteredList.length === 0) { emptyState.classList.remove('hidden'); return; }
+            emptyState.classList.add('hidden');
+
+            filteredList.forEach(exp => {
+                const member = teamMembers.find(m => m.id === parseInt(exp.memberId)) || { name: '알 수 없음' };
+                let categoryColor = 'bg-slate-100 text-slate-700';
+                if (exp.category === '식대') categoryColor = 'bg-orange-50 text-orange-700 border border-orange-100';
+                else if (exp.category === '카페') categoryColor = 'bg-amber-50 text-amber-700 border border-amber-100';
+                else if (exp.category === '기타') categoryColor = 'bg-sky-50 text-sky-700 border border-sky-100';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50/50 transition-colors">
+                        <td class="py-3.5 px-6 font-medium text-slate-500 whitespace-nowrap">${exp.date}</td>
+                        <td class="py-3.5 px-6 font-bold text-slate-900">${member.name}</td>
+                        <td class="py-3.5 px-6 font-medium text-slate-800">${exp.store}</td>
+                        <td class="py-3.5 px-6"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${categoryColor}">${exp.category}</span></td>
+                        <td class="py-3.5 px-6 text-right font-extrabold text-slate-900 whitespace-nowrap">${exp.amount.toLocaleString()}원</td>
+                        <td class="py-3.5 px-6 text-center">
+                            <button onclick="deleteExpenseItem('${exp.id}', '${exp.store.replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-rose-600 transition-colors p-1" title="내역 삭제">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                            </button>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        initApp();
+    </script>
+</body>
+</html>
